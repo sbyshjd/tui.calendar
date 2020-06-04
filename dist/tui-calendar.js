@@ -20020,14 +20020,14 @@ ScheduleCreationPopup.prototype.render = function(viewModel) {
  */
 ScheduleCreationPopup.prototype._makeEditModeData = function(viewModel) {
     var schedule = viewModel.schedule;
-    var title, isPrivate, location, startDate, endDate, isAllDay, state;
+    var title, isPrivate, startDate, endDate, isAllDay, state; // location,;
     var raw = schedule.raw || {};
     var calendars = this.calendars;
 
     var id = schedule.id;
     title = schedule.title;
     isPrivate = raw['class'] === 'private';
-    location = schedule.location;
+    // location = schedule.location;
     startDate = schedule.start;
     endDate = schedule.end;
     isAllDay = schedule.isAllDay;
@@ -20045,7 +20045,7 @@ ScheduleCreationPopup.prototype._makeEditModeData = function(viewModel) {
         calendars: calendars,
         title: title,
         isPrivate: isPrivate,
-        location: location,
+        // location: location,
         isAllDay: isAllDay,
         state: state,
         start: startDate,
@@ -20447,7 +20447,7 @@ ScheduleCreationPopup.prototype._onClickCreateSchedule = function(form) {
     this.fire('beforeCreateSchedule', {
         calendarId: form.calendarId,
         title: form.title.value,
-        location: form.location.value,
+        // location: form.location.value,
         raw: {
             class: form.isPrivate ? 'private' : 'public'
         },
