@@ -1,6 +1,6 @@
 /*!
  * TOAST UI Calendar
- * @version 1.12.13 | Tue Apr 28 2020
+ * @version 1.12.13 | Thu Jun 04 2020
  * @author NHN FE Development Lab <dl_javascript@nhn.com>
  * @license MIT
  */
@@ -2471,29 +2471,6 @@ Collection.or = function(filters) {
     };
 };
 
-/**
- * Merge several collections.
- *
- * You can\'t merge collections different _getScheduleID functions. Take case of use.
- * @param {...Collection} collections collection arguments to merge
- * @returns {Collection} merged collection.
- */
-Collection.merge = function(collections) {    // eslint-disable-line
-    var cols = aps.call(arguments),
-        newItems = {},
-        merged = new Collection(cols[0].getItemID),
-        extend = util.extend;
-
-    forEachArr(cols, function(col) {
-        extend(newItems, col.items);
-    });
-
-    merged.items = newItems;
-    merged.length = util.keys(merged.items).length;
-
-    return merged;
-};
-
 /**********
  * prototype props
  **********/
@@ -2839,7 +2816,6 @@ module.exports = Collection;
 
 
 var util = __webpack_require__(/*! tui-code-snippet */ "tui-code-snippet");
-var aps = Array.prototype.slice;
 
 var domutil = __webpack_require__(/*! ../common/domutil */ "./src/js/common/domutil.js"),
     Collection = __webpack_require__(/*! ../common/collection */ "./src/js/common/collection.js");
@@ -2900,51 +2876,6 @@ module.exports = {
             nearestIndex = util.inArray(Math.min.apply(null, diff), diff);
 
         return nearest[nearestIndex];
-    },
-
-    /**
-     * pick value from object then return utility object to treat it.
-     * @param {object} obj - object to search supplied path property.
-     * @param {...string} paths - rest parameter that string value to search property in object.
-     * @returns {object} pick object.
-     */
-    pick2: function(obj, paths) {    // eslint-disable-line
-        var result = util.pick.apply(null, arguments),
-            pick;
-
-        pick = {
-            /**
-             * @returns {*} picked value.
-             */
-            val: function() {
-                return result;
-            },
-
-            /**
-             * invoke supplied function in picked object.
-             *
-             * the callback context is set picked object.
-             * @param {string|function} fn - function to invoke in picked object.
-             * @returns {*} result of invoke.
-             */
-            then: function(fn) {
-                var args;
-
-                if (!result) {
-                    return undefined;    //eslint-disable-line
-                }
-
-                args = aps.call(arguments, 1);
-
-                if (util.isString(fn)) {
-                    return (util.pick(result, fn) || function() {}).apply(result, args);
-                }
-
-                return fn.call(result, result);
-            }
-        };
-
-        return pick;
     },
 
     /**
@@ -4058,8 +3989,7 @@ module.exports = dirty;
 
 
 var util = __webpack_require__(/*! tui-code-snippet */ "tui-code-snippet");
-var browser = util.browser,
-    eventKey = '_evt',
+var eventKey = '_evt',
     DRAG = {
         START: ['touchstart', 'mousedown'],
         END: {
@@ -4206,13 +4136,6 @@ var domevent = {
         delete obj[eventKey][id];
 
         if (util.keys(obj[eventKey]).length) {
-            return;
-        }
-
-        // throw exception when deleting host object's property in below IE8
-        if (util.browser.msie && util.browser.version < 9) {
-            obj[eventKey] = null;
-
             return;
         }
 
@@ -4417,11 +4340,6 @@ var domevent = {
             button: 0,
             relatedTarget: undefined  // eslint-disable-line
         }, eventObj);
-
-        // prevent throw error when inserting wheelDelta property to mouse event on below IE8
-        if (browser.msie && browser.version < 9) {
-            delete e.wheelDelta;
-        }
 
         if (typeof document.createEvent === 'function') {
             evt = document.createEvent('MouseEvents');
@@ -11256,10 +11174,11 @@ var dayGridCore = {
     /**
      * @param {view} view - view instance.
      * @param {TZDate} startDate - start date
-     * @returns {function|boolean} function that return schedule data by mouse events.
+     * @returns {object} schedule data by mouse events.
      */
     _retriveScheduleDataFromDate: function(view, startDate) {
         var weekdayView = view.children.single(),
+            xIndex = 0,
             datesInRange,
             dragStartXIndex = 0,
             grids,
@@ -11275,36 +11194,22 @@ var dayGridCore = {
 
         util.forEach(range, function(date, index) {
             if (datetime.isSameDate(date, startDate)) {
-                dragStartXIndex = index;
+                xIndex = dragStartXIndex = index;
             }
         });
 
-        /**
-         * @param {TZDate} targetDate - target date
-         * @returns {object} schedule data.
-         */
-        return function(targetDate) {
-            var xIndex = 0;
+        // apply limitation of creation schedule X index.
+        xIndex = mmax(xIndex, 0);
+        xIndex = mmin(xIndex, datesInRange - 1);
 
-            util.forEach(range, function(date, index) {
-                if (datetime.isSameDate(date, targetDate)) {
-                    xIndex = index;
-                }
-            });
-
-            // apply limitation of creation schedule X index.
-            xIndex = mmax(xIndex, 0);
-            xIndex = mmin(xIndex, datesInRange - 1);
-
-            return {
-                relatedView: view,
-                dragStartXIndex: dragStartXIndex,
-                datesInRange: datesInRange,
-                xIndex: xIndex,
-                triggerEvent: 'manual',
-                grids: grids,
-                range: range
-            };
+        return {
+            relatedView: view,
+            dragStartXIndex: dragStartXIndex,
+            datesInRange: datesInRange,
+            xIndex: xIndex,
+            triggerEvent: 'manual',
+            grids: grids,
+            range: range
         };
     }
 };
@@ -11670,10 +11575,7 @@ DayGridCreation.prototype._onDblClick = function(clickEventData) {
  * @param {Schedule} schedule - schedule instance
  */
 DayGridCreation.prototype.invokeCreationClick = function(schedule) {
-    var getScheduleDataFunc, scheduleData;
-
-    getScheduleDataFunc = this._retriveScheduleDataFromDate(this.view, schedule.start);
-    scheduleData = getScheduleDataFunc(schedule.start);
+    var scheduleData = this._retriveScheduleDataFromDate(this.view, schedule.start);
 
     this.fire('click', scheduleData);
 
@@ -13956,7 +13858,6 @@ module.exports = (Handlebars['default'] || Handlebars).template({"1":function(co
 
 var util = __webpack_require__(/*! tui-code-snippet */ "tui-code-snippet");
 var config = __webpack_require__(/*! ../../config */ "./src/js/config.js"),
-    common = __webpack_require__(/*! ../../common/common */ "./src/js/common/common.js"),
     domutil = __webpack_require__(/*! ../../common/domutil */ "./src/js/common/domutil.js"),
     datetime = __webpack_require__(/*! ../../common/datetime */ "./src/js/common/datetime.js"),
     TZDate = __webpack_require__(/*! ../../common/timezone */ "./src/js/common/timezone.js").Date,
@@ -13975,8 +13876,6 @@ var mmax = Math.max,
  * @param {Month} monthView - Month view instance
  */
 function MonthGuide(options, monthView) {
-    var self = this;
-
     /**
      * @type {object}
      */
@@ -14008,13 +13907,6 @@ function MonthGuide(options, monthView) {
     this.days = monthView.children.single().getRenderDateRange().length;
 
     /**
-     * @type {function}
-     */
-    this.ratio = util.bind(function(value) {
-        return common.ratio(self.days, 100, value);
-    });
-
-    /**
      * start coordinate of guide effect. (x, y) (days, weeks) effect can't
      *  start lower than this coordinate.
      * @type {number[]}
@@ -14040,7 +13932,7 @@ MonthGuide.prototype.destroy = function() {
     this.clear();
 
     this.options = this.view = this.weeks = this.days =
-        this.ratio = this.startCoord = this.guideElements = null;
+        this.startCoord = this.guideElements = null;
 };
 
 MonthGuide.prototype.clearGuideElement = function() {
@@ -15668,7 +15560,7 @@ var timeCore = {
          * @param {object} [extend] - object to extend event data before return.
          * @returns {object} - common event data for time.*
          */
-        return util.bind(function(mouseEvent, extend) {
+        return function(mouseEvent, extend) {
             var mouseY = Point.n(domevent.getMousePosition(mouseEvent, container)).y,
                 gridY = common.ratio(viewHeight, hourLength, mouseY),
                 timeY = new TZDate(viewTime).addMinutes(datetime.minutesFromHours(gridY)),
@@ -15688,47 +15580,40 @@ var timeCore = {
                 nearestGridTimeY: nearestGridTimeY,
                 triggerEvent: mouseEvent.type
             }, extend);
-        }, this);
+        };
     },
 
     /**
      * Get function to makes event data from Time and mouseEvent
      * @param {Time} timeView - Instance of time view.
-     * @param {number} xIndex - Time view index
-     * @returns {function} - Function that return event data from mouse event.
+     * @param {TZDate} startDate - start date
+     * @param {TZDate} endDate - end date
+     * @param {number} hourStart Can limit of render hour start.
+     * @returns {object} - common event data for time.* from mouse event.
      */
-    _retriveScheduleDataFromDate: function(timeView) {
+    _retriveScheduleDataFromDate: function(timeView, startDate, endDate, hourStart) {
         var viewTime = timeView.getDate();
+        var gridY, timeY, nearestGridY, nearestGridTimeY, nearestGridEndY, nearestGridEndTimeY;
 
-        /**
-         * @param {TZDate} startDate - start date
-         * @param {TZDate} endDate - end date
-         * @param {number} hourStart Can limit of render hour start.
-         * @returns {object} - common event data for time.*
-         */
-        return util.bind(function(startDate, endDate, hourStart) {
-            var gridY, timeY, nearestGridY, nearestGridTimeY, nearestGridEndY, nearestGridEndTimeY;
+        gridY = startDate.getHours() - hourStart + getNearestHour(startDate.getMinutes());
+        timeY = new TZDate(viewTime).addMinutes(datetime.minutesFromHours(gridY));
+        nearestGridY = gridY;
+        nearestGridTimeY = new TZDate(viewTime).addMinutes(datetime.minutesFromHours(nearestGridY));
+        nearestGridEndY = endDate.getHours() - hourStart + getNearestHour(endDate.getMinutes());
+        nearestGridEndTimeY = new TZDate(viewTime).addMinutes(datetime.minutesFromHours(nearestGridEndY));
 
-            gridY = startDate.getHours() - hourStart + getNearestHour(startDate.getMinutes());
-            timeY = new TZDate(viewTime).addMinutes(datetime.minutesFromHours(gridY));
-            nearestGridY = gridY;
-            nearestGridTimeY = new TZDate(viewTime).addMinutes(datetime.minutesFromHours(nearestGridY));
-            nearestGridEndY = endDate.getHours() - hourStart + getNearestHour(endDate.getMinutes());
-            nearestGridEndTimeY = new TZDate(viewTime).addMinutes(datetime.minutesFromHours(nearestGridEndY));
-
-            return util.extend({
-                target: timeView,
-                relatedView: timeView,
-                gridY: gridY,
-                timeY: timeY,
-                nearestGridY: nearestGridY,
-                nearestGridTimeY: nearestGridTimeY,
-                nearestGridEndY: nearestGridEndY,
-                nearestGridEndTimeY: nearestGridEndTimeY,
-                triggerEvent: 'manual',
-                hourStart: hourStart
-            });
-        }, this);
+        return {
+            target: timeView,
+            relatedView: timeView,
+            gridY: gridY,
+            timeY: timeY,
+            nearestGridY: nearestGridY,
+            nearestGridTimeY: nearestGridTimeY,
+            nearestGridEndY: nearestGridEndY,
+            nearestGridEndTimeY: nearestGridEndTimeY,
+            triggerEvent: 'manual',
+            hourStart: hourStart
+        };
     },
 
     /**
@@ -16149,7 +16034,7 @@ TimeCreation.prototype.invokeCreationClick = function(schedule) {
             datetime.MILLISECONDS_PER_DAY),
         hourStart = opt.hourStart,
         targetDate = schedule.start;
-    var getScheduleDataFunc, eventData, timeView;
+    var eventData, timeView;
 
     util.forEach(range, function(date, index) {
         if (datetime.isSameDate(date, targetDate)) {
@@ -16162,8 +16047,7 @@ TimeCreation.prototype.invokeCreationClick = function(schedule) {
         timeView = this.timeGridView.children.toArray()[0];
     }
 
-    getScheduleDataFunc = this._retriveScheduleDataFromDate(timeView);
-    eventData = getScheduleDataFunc(schedule.start, schedule.end, hourStart);
+    eventData = this._retriveScheduleDataFromDate(timeView, schedule.start, schedule.end, hourStart);
 
     this.fire('timeCreationClick', eventData);
 
@@ -20072,7 +19956,7 @@ ScheduleCreationPopup.prototype._onClickSaveSchedule = function(target) {
     form = {
         calendarId: this._selectedCal ? this._selectedCal.id : null,
         title: title,
-        location: domutil.get(cssPrefix + 'schedule-location'),
+        // location: domutil.get(cssPrefix + 'schedule-location'),
         start: rangeDate.start,
         end: rangeDate.end,
         isAllDay: isAllDay,
@@ -20514,7 +20398,7 @@ ScheduleCreationPopup.prototype._onClickUpdateSchedule = function(form) {
         {
             calendarId: form.calendarId,
             title: form.title.value,
-            location: location.value,
+            location: form.location.value,
             start: form.start,
             end: form.end,
             isAllDay: form.isAllDay,
@@ -20563,7 +20447,7 @@ ScheduleCreationPopup.prototype._onClickCreateSchedule = function(form) {
     this.fire('beforeCreateSchedule', {
         calendarId: form.calendarId,
         title: form.title.value,
-        location: location.value,
+        location: form.location.value,
         raw: {
             class: form.isPrivate ? 'private' : 'public'
         },
@@ -20588,7 +20472,7 @@ module.exports = ScheduleCreationPopup;
 
 "use strict";
 /**
- * @fileoverview Floating layer for  showing detail schedule
+ * @fileoverview Floating layer for showing detail schedule
  * @author NHN FE Development Lab <dl_javascript@nhn.com>
  */
 
@@ -25441,6 +25325,12 @@ function TimeGrid(name, options, panelElement) {
     this.timerID = 0;
 
     /**
+     * requestAnimationFrame unique ID
+     * @type {number}
+     */
+    this.rAnimationFrameID = 0;
+
+    /**
      * @type {boolean}
      */
     this._scrolled = false;
@@ -25478,6 +25368,7 @@ TimeGrid.prototype.viewName = 'timegrid';
 TimeGrid.prototype._beforeDestroy = function() {
     clearInterval(this.intervalID);
     clearTimeout(this.timerID);
+    reqAnimFrame.cancelAnimFrame(this.rAnimationFrameID);
 
     if (this._autoScroll) {
         this._autoScroll.destroy();
@@ -25486,7 +25377,7 @@ TimeGrid.prototype._beforeDestroy = function() {
     domevent.off(this.stickyContainer, 'click', this._onClickStickyContainer, this);
 
     this._autoScroll = this.hourmarkers = this.intervalID =
-    this.timerID = this._cacheParentViewModel = this.stickyContainer = null;
+    this.timerID = this.rAnimationFrameID = this._cacheParentViewModel = this.stickyContainer = null;
 };
 
 /**
@@ -25758,15 +25649,16 @@ TimeGrid.prototype.refreshHourmarker = function() {
     var hourmarkers = this.hourmarkers;
     var viewModel = this._cacheParentViewModel;
     var hoursLabels = this._cacheHoursLabels;
+    var rAnimationFrameID = this.rAnimationFrameID;
     var baseViewModel;
 
-    if (!hourmarkers || !viewModel) {
+    if (!hourmarkers || !viewModel || rAnimationFrameID) {
         return;
     }
 
     baseViewModel = this._getBaseViewModel(viewModel);
 
-    reqAnimFrame.requestAnimFrame(function() {
+    this.rAnimationFrameID = reqAnimFrame.requestAnimFrame(function() {
         var needsRender = false;
 
         util.forEach(hoursLabels, function(hoursLabel, index) {
@@ -25800,6 +25692,8 @@ TimeGrid.prototype.refreshHourmarker = function() {
                 }
             });
         }
+
+        this.rAnimationFrameID = null;
     }, this);
 };
 
@@ -25809,7 +25703,7 @@ TimeGrid.prototype.refreshHourmarker = function() {
 TimeGrid.prototype.attachEvent = function() {
     clearInterval(this.intervalID);
     clearTimeout(this.timerID);
-    this.intervalID = this.timerID = null;
+    this.intervalID = this.timerID = this.rAnimationFrameID = null;
 
     this.timerID = setTimeout(util.bind(this.onTick, this), (SIXTY_SECONDS - new TZDate().getSeconds()) * 1000);
 

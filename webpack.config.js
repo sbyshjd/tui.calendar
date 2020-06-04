@@ -92,7 +92,7 @@ module.exports = {
             use: 'url-loader'
         }]
     },
-    devtool,
+    devtool: devtool,
     plugins: [
         new MiniCssExtractPlugin({
             filename: FILENAME + '.css'
